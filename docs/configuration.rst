@@ -115,6 +115,17 @@ return code will be:
  * ``1`` if one or more errors occur
  * ``2`` if no errors occur, but one or more warnings occur
 
+Output Color
+------------
+
+When using the ``standard`` output format (the default) color can be managed by ``--color`` option.
+Its use is like the same option in ``grep`` :
+
+ * ``auto`` activate color output only for tty and without using pipe or redirection (this is the default)
+ * ``always`` always use color
+ * ``never`` never use colors
+
+
 Ignoring paths
 --------------
 

@@ -16,15 +16,15 @@
 
 from __future__ import print_function
 
-import os
-import sys
-import platform
 import argparse
+import os
+import platform
+import sys
 
 from yamllint import APP_DESCRIPTION, APP_NAME, APP_VERSION
+from yamllint import linter
 from yamllint.config import YamlLintConfig, YamlLintConfigError
 from yamllint.linter import PROBLEM_LEVELS
-from yamllint import linter
 
 
 def find_files_recursively(items):
@@ -38,13 +38,23 @@ def find_files_recursively(items):
             yield item
 
 
-def supports_color():
-    supported_platform = not (platform.system() == 'Windows' and not
+def supports_color(color_when):
+    if 'never' == color_when:
+        use_color = 0
+    elif 'always' == color_when:
+        use_color = 1
+    else:
+        supported_platform = not (platform.system() == 'Windows' and not
                               ('ANSICON' in os.environ or
                                ('TERM' in os.environ and
                                 os.environ['TERM'] == 'ANSI')))
-    return (supported_platform and
-            hasattr(sys.stdout, 'isatty') and sys.stdout.isatty())
+        use_color = (
+                supported_platform and
+                hasattr(sys.stdout, 'isatty') and
+                sys.stdout.isatty()
+        )
+
+    return use_color
 
 
 class Format(object):
@@ -58,7 +68,7 @@ class Format(object):
                  'message': problem.message})
 
     @staticmethod
-    def standard(problem, filename):
+    def standard(problem):
         line = '  %d:%d' % (problem.line, problem.column)
         line += max(12 - len(line), 0) * ' '
         line += problem.level
@@ -69,7 +79,7 @@ class Format(object):
         return line
 
     @staticmethod
-    def standard_color(problem, filename):
+    def standard_color(problem):
         line = '  \033[2m%d:%d\033[0m' % (problem.line, problem.column)
         line += max(20 - len(line), 0) * ' '
         if problem.level == 'warning':
@@ -81,6 +91,21 @@ class Format(object):
         if problem.rule:
             line += '  \033[2m(%s)\033[0m' % problem.rule
         return line
+
+    @staticmethod
+    def first(filename, use_color):
+        if use_color:
+            line = '\033[4m%s\033[0m' % filename
+        else:
+            line = filename
+        return line
+
+    @staticmethod
+    def problem(problem, use_color):
+        if use_color:
+            Format.standard_color(problem)
+        else:
+            Format.standard(problem)
 
 
 def run(argv=None):
@@ -98,6 +123,9 @@ def run(argv=None):
     parser.add_argument('-f', '--format',
                         choices=('parsable', 'standard'), default='standard',
                         help='format for parsing output')
+    parser.add_argument('-r', '--color',
+                        choices=('auto', 'always', 'never'), default='auto',
+                        help='should standard output format includes color')
     parser.add_argument('-s', '--strict',
                         action='store_true',
                         help='return non-zero exit code on warnings '
@@ -135,6 +163,7 @@ def run(argv=None):
 
     max_level = 0
 
+    use_color = supports_color(args.color)
     for file in find_files_recursively(args.files):
         filepath = file[2:] if file.startswith('./') else file
         try:
@@ -143,18 +172,12 @@ def run(argv=None):
                 for problem in linter.run(f, conf, filepath):
                     if args.format == 'parsable':
                         print(Format.parsable(problem, file))
-                    elif supports_color():
-                        if first:
-                            print('\033[4m%s\033[0m' % file)
-                            first = False
-
-                        print(Format.standard_color(problem, file))
                     else:
                         if first:
-                            print(file)
+                            print(Format.first(file, use_color))
                             first = False
 
-                        print(Format.standard(problem, file))
+                        print(Format.problem(problem, use_color))
 
                     max_level = max(max_level, PROBLEM_LEVELS[problem.level])
 

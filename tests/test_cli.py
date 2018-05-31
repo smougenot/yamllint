@@ -333,7 +333,25 @@ class CommandLineTestCase(unittest.TestCase):
             '(key-duplicates)\n') % file)
         self.assertEqual(err, '')
 
-    def test_run_piped_output_nocolor(self):
+    def assert_no_color_output_for_a(self, out, file):
+        self.assertEqual(out, (
+                '%s\n'
+                '  2:4       error    trailing spaces  (trailing-spaces)\n'
+                '  3:4       error    no new line character at the end of file  '
+                '(new-line-at-end-of-file)\n'
+                '\n' % file))
+
+    def assert_color_output_for_a(self, out, file):
+        self.assertEqual(out, (
+                '\033[4m%s\033[0m\n'
+                '  \033[2m2:4\033[0m       \033[31merror\033[0m    '
+                'trailing spaces  \033[2m(trailing-spaces)\033[0m\n'
+                '  \033[2m3:4\033[0m       \033[31merror\033[0m    '
+                'no new line character at the end of file  '
+                '\033[2m(new-line-at-end-of-file)\033[0m\n'
+                '\n' % file))
+
+    def test_run_piped_output_color_auto(self):
         file = os.path.join(self.wd, 'a.yaml')
 
         sys.stdout, sys.stderr = StringIO(), StringIO()
@@ -343,15 +361,36 @@ class CommandLineTestCase(unittest.TestCase):
         self.assertEqual(ctx.exception.code, 1)
 
         out, err = sys.stdout.getvalue(), sys.stderr.getvalue()
-        self.assertEqual(out, (
-            '%s\n'
-            '  2:4       error    trailing spaces  (trailing-spaces)\n'
-            '  3:4       error    no new line character at the end of file  '
-            '(new-line-at-end-of-file)\n'
-            '\n' % file))
+        self.assert_no_color_output_for_a(out, file)
         self.assertEqual(err, '')
 
-    def test_run_colored_output(self):
+    def test_run_piped_output_color_always(self):
+        file = os.path.join(self.wd, 'a.yaml')
+
+        sys.stdout, sys.stderr = StringIO(), StringIO()
+        with self.assertRaises(SystemExit) as ctx:
+            cli.run(('--color', 'always', file, ))
+
+        self.assertEqual(ctx.exception.code, 1)
+
+        out, err = sys.stdout.getvalue(), sys.stderr.getvalue()
+        self.assert_color_output_for_a(out, file)
+        self.assertEqual(err, '')
+
+    def test_run_piped_output_color_never(self):
+        file = os.path.join(self.wd, 'a.yaml')
+
+        sys.stdout, sys.stderr = StringIO(), StringIO()
+        with self.assertRaises(SystemExit) as ctx:
+            cli.run(('--color', 'never', file, ))
+
+        self.assertEqual(ctx.exception.code, 1)
+
+        out, err = sys.stdout.getvalue(), sys.stderr.getvalue()
+        self.assert_no_color_output_for_a(out, file)
+        self.assertEqual(err, '')
+
+    def test_run_colored_output_color_auto(self):
         file = os.path.join(self.wd, 'a.yaml')
 
         # Create a pseudo-TTY and redirect stdout to it
@@ -375,11 +414,4 @@ class CommandLineTestCase(unittest.TestCase):
         sys.stderr.close()
         output.close()
 
-        self.assertEqual(out, (
-            '\033[4m%s\033[0m\n'
-            '  \033[2m2:4\033[0m       \033[31merror\033[0m    '
-            'trailing spaces  \033[2m(trailing-spaces)\033[0m\n'
-            '  \033[2m3:4\033[0m       \033[31merror\033[0m    '
-            'no new line character at the end of file  '
-            '\033[2m(new-line-at-end-of-file)\033[0m\n'
-            '\n' % file))
+        self.assert_color_output_for_a(out, file)
